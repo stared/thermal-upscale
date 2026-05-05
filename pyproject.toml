@@ -9,4 +9,5 @@ dependencies = [
     "numpy>=2",
     "matplotlib>=3.9",
     "requests>=2.32",
+    "scipy>=1.13",
 ]
