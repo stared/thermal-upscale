@@ -65,11 +65,13 @@ Dropped, do not re-run:
 
 ## Open experiments / next
 
-- [ ] **Raw-mode pipeline.** Extract APP3 uint16 → normalize → apply ironbow / inferno / turbo colormap → 192×256 PNG → Upscayl Standard. Compare against the JPEG-path output of the same scene side by side. If raw-mode visibly removes the halo without losing real signal, the CLI defaults to raw-mode.
-- [ ] **Pre-blur sweep.** Light Gaussian on the 192×256 input (σ ∈ {0.3, 0.5, 0.8}) before Upscayl. Cheap halo attenuation; risk is killing real edges. Worth one A/B.
-- [ ] **Post-CAS** (contrast-adaptive sharpening) at low strength on the 768×1024 output, compared against no post.
-- [ ] **A/B Standard vs Nomos8kSC** on more scenes — they're close enough that current 3-image sample isn't decisive.
-- [ ] When CLI is built, only after the above settle: `thermal-upscale INPUT [-o OUT] [--from-raw] [--colormap NAME]`. Default model `upscayl-standard-4x`. Single-file or directory input.
+**Constraint:** every step in the pipeline must be end-to-end neural. No Gaussian pre-blur, unsharp / CAS post, or other classical signal-processing in the chain. Fine-tuned weights are fair game; bilinear/Lanczos *as a downscale to native sensor size* stays (it's the input prep, not part of the SR step).
+
+- [ ] **Raw-mode pipeline.** Extract APP3 uint16 → normalize → apply colormap → 192×256 PNG → upscayl-bin Standard. Pure input-side change; the SR step is unchanged. Should remove the camera-firmware JPEG halo entirely. Compare colormap variants (ironbow / inferno / turbo) since the colormap *is* what the SR network sees.
+- [ ] **A/B Standard vs Nomos8kSC** on ~10 more scenes (3-image sample isn't decisive). Need diverse subjects: people, indoor objects, outdoor warm/cool scenes, low-thermal-contrast frames.
+- [ ] **Cascade two SR networks.** e.g. RealESRGAN_General ×4 (soft, faithful, fast) → another NCNN model at ×2 (would need a 2× model added to the cache; `realesr-animevideov3-x2` exists in upscayl/custom-models). The second pass adds detail to a clean intermediate. End-to-end neural; no classical filters between.
+- [ ] **Thermal-specific fine-tune.** Out of scope unless we collect a P3 dataset and have GPU time. Park for now.
+- [ ] **CLI** (only after the above settle): `thermal-upscale INPUT [-o OUT] [--from-raw] [--colormap NAME] [--model NAME]`. Default `upscayl-standard-4x`. Single-file or directory input.
 
 ## Tooling notes
 - `upscayl-bin -i in -o out -m <models_dir> -n <model> -s 4 -f png` — verified on all 14 models. Works from PNG input; PNG round-trip avoids JPEG re-compression on the 192×256 intermediate.
