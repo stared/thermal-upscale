@@ -114,23 +114,107 @@ def colormap_rgb(norm: np.ndarray, name: str) -> np.ndarray:
     return (cmap(norm)[..., :3] * 255).astype(np.uint8)
 
 
+# ---------- normalization ----------
+
+def normalize_with_cut(arr: np.ndarray, cut_percentile: float = 1.0) -> np.ndarray:
+    """Clip & normalize to [0, 1].
+
+    cut_percentile = 0   → no clipping; use full min-max range.
+    cut_percentile = p   → clip at the p-th and (100-p)-th percentiles.
+                           Default 1.0 → clip at 1st/99th, matching the camera firmware's
+                           rough behavior (extreme hot/cold pixels don't dominate).
+    """
+    a = arr.astype(np.float64)
+    if cut_percentile <= 0:
+        lo, hi = a.min(), a.max()
+    else:
+        lo, hi = np.percentile(a, [cut_percentile, 100.0 - cut_percentile])
+    return np.clip((a - lo) / max(1e-9, hi - lo), 0.0, 1.0)
+
+
+# ---------- inverse ironbow LUT (reverse-engineer JPEG palette) ----------
+# Adapted from vibe-temp-cc/scripts/explore_thermal.py:158-213. Builds a 64³ 3D
+# RGB→ironbow-index LUT in LAB space; gives back the normalized 0-1 temp the
+# camera's pseudocolor encoded.
+
+def _rgb_to_lab(rgb: np.ndarray) -> np.ndarray:
+    f = rgb.astype(np.float64) / 255.0
+    lin = np.where(f > 0.04045, ((f + 0.055) / 1.055) ** 2.4, f / 12.92)
+    r, g, b = lin[..., 0], lin[..., 1], lin[..., 2]
+    x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047
+    y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
+    z = (r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883
+    def fn(t):
+        return np.where(t > 0.008856, t ** (1 / 3), 7.787 * t + 16 / 116)
+    fx, fy, fz = fn(x), fn(y), fn(z)
+    return np.stack([116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)], axis=-1)
+
+
+_BIN = 4
+_NB = 256 // _BIN
+_LUT3D: np.ndarray | None = None
+
+
+def _ensure_inverse_lut() -> np.ndarray:
+    global _LUT3D
+    if _LUT3D is not None:
+        return _LUT3D
+    lut_lab = _rgb_to_lab(_IRONBOW)
+    vals = np.arange(0, 256, _BIN, dtype=np.uint8) + _BIN // 2
+    gr, gg, gb = np.meshgrid(vals, vals, vals, indexing="ij")
+    grid_lab = _rgb_to_lab(np.stack([gr, gg, gb], axis=-1))
+    flat = grid_lab.reshape(-1, 3)
+    out = np.zeros(_NB ** 3, dtype=np.uint8)
+    for i in range(0, len(flat), 4096):
+        chunk = flat[i:i + 4096]
+        d = np.sum((chunk[:, None, :] - lut_lab[None, :, :]) ** 2, axis=2)
+        out[i:i + 4096] = np.argmin(d, axis=1)
+    _LUT3D = out.reshape(_NB, _NB, _NB)
+    return _LUT3D
+
+
+def jpeg_to_normalized_temp(rgb: np.ndarray) -> np.ndarray:
+    """Reverse-engineer the camera ironbow LUT: RGB pixels → normalized 0-1 temp."""
+    lut3d = _ensure_inverse_lut()
+    ri = np.clip(rgb[..., 0].astype(int) // _BIN, 0, _NB - 1)
+    gi = np.clip(rgb[..., 1].astype(int) // _BIN, 0, _NB - 1)
+    bi = np.clip(rgb[..., 2].astype(int) // _BIN, 0, _NB - 1)
+    return lut3d[ri, gi, bi].astype(np.float64) / 255.0
+
+
 # ---------- pipeline ----------
 
 def render_raw(jpeg: Path, colormap: str, out_png: Path,
-               clip_pct: tuple[float, float] = (1.0, 99.0)) -> None:
-    """Extract raw → percentile-clipped normalize → colormap → save.
-
-    Percentile clipping (default 1–99) avoids extreme hot/cold pixels (fire core,
-    dead pixels) from compressing the rest of the dynamic range. This is what
-    the camera firmware effectively does.
-    """
+               cut_percentile: float = 1.0) -> None:
+    """Raw uint16 → normalize_with_cut → colormap → save 192×256 PNG."""
     img = Image.open(jpeg)
     ir_w, ir_h = parse_ijpeg_header(img)
-    thermal = extract_raw_thermal(img, ir_w, ir_h).astype(np.float64)
-    lo, hi = np.percentile(thermal, clip_pct)
-    norm = np.clip((thermal - lo) / max(1.0, hi - lo), 0.0, 1.0)
-    rgb = colormap_rgb(norm, colormap)
-    Image.fromarray(rgb).save(out_png, format="PNG")
+    thermal = extract_raw_thermal(img, ir_w, ir_h)
+    norm = normalize_with_cut(thermal, cut_percentile)
+    Image.fromarray(colormap_rgb(norm, colormap)).save(out_png, format="PNG")
+
+
+def render_jpeg(jpeg: Path, colormap: str, out_png: Path,
+                ir_size: tuple[int, int] | None = None) -> None:
+    """JPEG RGB → inverse ironbow LUT → normalized temp → Lanczos to 192×256
+    → re-apply the chosen colormap. Apples-to-apples partner of render_raw().
+    No percentile-clip: the camera already normalized when it baked the palette.
+    """
+    img = Image.open(jpeg)
+    if ir_size is None:
+        ir_w, ir_h = parse_ijpeg_header(img)
+    else:
+        ir_w, ir_h = ir_size
+    rgb = np.array(img.convert("RGB"))
+    norm_full = jpeg_to_normalized_temp(rgb)
+    # Match orientation to the JPEG (already portrait), then Lanczos-downscale
+    if (img.height > img.width) != (ir_h > ir_w):
+        ir_w, ir_h = ir_h, ir_w
+    norm_small = np.array(
+        Image.fromarray((norm_full * 255).astype(np.uint8))
+        .resize((ir_w, ir_h), Image.Resampling.LANCZOS)
+    ).astype(np.float64) / 255.0
+    Image.fromarray(colormap_rgb(norm_small, colormap)).save(out_png, format="PNG")
 
 
 def run_upscayl(in_png: Path, out_png: Path) -> float:
@@ -212,7 +296,7 @@ def main() -> None:
         for cmap in COLORMAPS:
             inp = photo_work / f"raw_{cmap}.png"
             out_up = photo_work / f"raw_{cmap}_upscayl.png"
-            render_raw(jpeg, cmap, inp)
+            render_raw(jpeg, cmap, inp, cut_percentile=1.0)
             dt = run_upscayl(inp, out_up)
             print(f"  raw-{cmap:8s}  upscayl {dt:.2f}s")
 

@@ -1,6 +1,9 @@
-"""Stage 1 only: 192×256 raw → inferno colormap. Min-max vs percentile, same chart.
+"""Stage 1 only: 192×256 inferno inputs from JPEG-path vs raw-path, same chart.
 
-One figure per photo, two panels (min-max | percentile), inferno only.
+Apples-to-apples: both panels go through the SAME colormap (inferno). The JPEG
+path reverses the camera's ironbow LUT first to recover normalized temps, so
+the only remaining difference between left and right is whether the source is
+the camera-baked JPEG or the APP3 raw uint16.
 
 Run: uv run scripts/show_colormaps.py
 """
@@ -16,21 +19,33 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent))
 from from_raw import (  # noqa: E402
     INPUT, OUT, parse_ijpeg_header, extract_raw_thermal, colormap_rgb,
+    jpeg_to_normalized_temp, normalize_with_cut,
 )
 
 PHOTOS = ["1777733165452.jpg", "1777804010136.jpg", "1771110170401.jpg"]
 COLORMAP = "inferno"
+CUT_PERCENTILE = 1.0  # for the raw path; JPEG path doesn't need this (camera already normalized)
 
 
-def render(jpeg: Path, mode: str) -> np.ndarray:
+def from_jpeg(jpeg: Path) -> np.ndarray:
     img = Image.open(jpeg)
     ir_w, ir_h = parse_ijpeg_header(img)
-    thermal = extract_raw_thermal(img, ir_w, ir_h).astype(np.float64)
-    if mode == "minmax":
-        lo, hi = thermal.min(), thermal.max()
-    else:  # percentile
-        lo, hi = np.percentile(thermal, [1.0, 99.0])
-    norm = np.clip((thermal - lo) / max(1.0, hi - lo), 0.0, 1.0)
+    rgb = np.array(img.convert("RGB"))
+    norm_full = jpeg_to_normalized_temp(rgb)
+    if (img.height > img.width) != (ir_h > ir_w):
+        ir_w, ir_h = ir_h, ir_w
+    norm_small = np.array(
+        Image.fromarray((norm_full * 255).astype(np.uint8))
+        .resize((ir_w, ir_h), Image.Resampling.LANCZOS)
+    ).astype(np.float64) / 255.0
+    return colormap_rgb(norm_small, COLORMAP)
+
+
+def from_raw(jpeg: Path) -> np.ndarray:
+    img = Image.open(jpeg)
+    ir_w, ir_h = parse_ijpeg_header(img)
+    thermal = extract_raw_thermal(img, ir_w, ir_h)
+    norm = normalize_with_cut(thermal, CUT_PERCENTILE)
     return colormap_rgb(norm, COLORMAP)
 
 
@@ -39,21 +54,23 @@ def main() -> None:
         photo_id = Path(photo_name).stem
         jpeg = INPUT / photo_name
 
+        rgb_j = from_jpeg(jpeg)
+        rgb_r = from_raw(jpeg)
+
         fig, axes = plt.subplots(1, 2, figsize=(8, 6))
-        for ax, (mode, label) in zip(axes, [
-            ("minmax", "min → max (per image)"),
-            ("percentile", "1st – 99th percentile clip"),
+        for ax, (label, rgb) in zip(axes, [
+            ("JPEG → inverse-LUT → inferno", rgb_j),
+            (f"raw → cut_percentile={CUT_PERCENTILE} → inferno", rgb_r),
         ]):
-            rgb = render(jpeg, mode)
             big = np.array(Image.fromarray(rgb).resize(
                 (rgb.shape[1] * 4, rgb.shape[0] * 4), Image.Resampling.NEAREST))
             ax.imshow(big)
             ax.set_title(label, fontsize=11)
             ax.set_xticks([]); ax.set_yticks([])
-        fig.suptitle(f"{photo_name} — raw 192×256 → inferno (no upscale)\n"
-                     f"normalization: min-max vs percentile", fontsize=12)
+        fig.suptitle(f"{photo_name} — apples-to-apples 192×256 inputs (no upscale)\n"
+                     f"both panels colored with {COLORMAP}", fontsize=12)
         plt.tight_layout()
-        out = OUT / f"input_norm_compare_{photo_id}.png"
+        out = OUT / f"input_jpeg_vs_raw_{photo_id}.png"
         fig.savefig(out, dpi=140, bbox_inches="tight")
         plt.close(fig)
         print(f"wrote {out}")
