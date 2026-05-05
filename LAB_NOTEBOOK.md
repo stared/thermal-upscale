@@ -65,12 +65,13 @@ Dropped, do not re-run:
 
 ## Open experiments / next
 
-**Constraint:** every step in the pipeline must be end-to-end neural. No Gaussian pre-blur, unsharp / CAS post, or other classical signal-processing in the chain. Fine-tuned weights are fair game; bilinear/Lanczos *as a downscale to native sensor size* stays (it's the input prep, not part of the SR step).
+**Constraint:** the upscaling itself is **one** neural network. Not a cascade, not a two-stage refinement, not two models stitched together. No classical pre/post filters either (Gaussian, unsharp, CAS, denoising). Fine-tuned weights are fair game. Lanczos as the *downscale to native sensor size* stays — that's input prep, not part of the SR step.
 
-- [ ] **Raw-mode pipeline.** Extract APP3 uint16 → normalize → apply colormap → 192×256 PNG → upscayl-bin Standard. Pure input-side change; the SR step is unchanged. Should remove the camera-firmware JPEG halo entirely. Compare colormap variants (ironbow / inferno / turbo) since the colormap *is* what the SR network sees.
-- [ ] **A/B Standard vs Nomos8kSC** on ~10 more scenes (3-image sample isn't decisive). Need diverse subjects: people, indoor objects, outdoor warm/cool scenes, low-thermal-contrast frames.
-- [ ] **Cascade two SR networks.** e.g. RealESRGAN_General ×4 (soft, faithful, fast) → another NCNN model at ×2 (would need a 2× model added to the cache; `realesr-animevideov3-x2` exists in upscayl/custom-models). The second pass adds detail to a clean intermediate. End-to-end neural; no classical filters between.
-- [ ] **Thermal-specific fine-tune.** Out of scope unless we collect a P3 dataset and have GPU time. Park for now.
+Given that, the only remaining levers are: **(a) which single network** and **(b) what input that network sees**.
+
+- [ ] **Raw-mode pipeline.** Extract APP3 uint16 → normalize → apply colormap → 192×256 PNG → upscayl-bin Standard. Pure input-side change; same single network. Should remove the camera-firmware JPEG halo entirely. Compare colormap variants (ironbow / inferno / turbo) since the colormap *is* what the SR network sees.
+- [ ] **A/B Standard vs Nomos8kSC** on ~10 more scenes (3-image sample isn't decisive). Diverse subjects: people, indoor objects, outdoor warm/cool, low-thermal-contrast frames.
+- [ ] **Thermal-specific fine-tune.** Out of scope unless we collect a P3 dataset and have GPU time. Park.
 - [ ] **CLI** (only after the above settle): `thermal-upscale INPUT [-o OUT] [--from-raw] [--colormap NAME] [--model NAME]`. Default `upscayl-standard-4x`. Single-file or directory input.
 
 ## Tooling notes
