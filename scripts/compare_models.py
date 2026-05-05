@@ -28,21 +28,17 @@ UPSCAYL_BIN = UPSCAYL_APP / "bin/upscayl-bin"
 UPSCAYL_MODELS = UPSCAYL_APP / "models"
 CUSTOM_MODELS = Path.home() / ".cache/thermal-upscale/models"
 
-# (model key, models-dir)
+# Active models. Dropped after the 2026-05-05 sweep: ultrasharp-4x, remacri-4x,
+# ultramix-balanced-4x, 4x_NMKD-Siax_200k, 4x_NMKD-Superscale-SP_178000_G,
+# 4xLSDIRplusC — see LAB_NOTEBOOK.md.
 MODELS: list[tuple[str, Path]] = [
     ("upscayl-standard-4x", UPSCAYL_MODELS),
     ("upscayl-lite-4x", UPSCAYL_MODELS),
     ("high-fidelity-4x", UPSCAYL_MODELS),
-    ("remacri-4x", UPSCAYL_MODELS),
-    ("ultramix-balanced-4x", UPSCAYL_MODELS),
-    ("ultrasharp-4x", UPSCAYL_MODELS),
     ("digital-art-4x", UPSCAYL_MODELS),
     ("RealESRGAN_General_x4_v3", CUSTOM_MODELS),
     ("RealESRGAN_General_WDN_x4_v3", CUSTOM_MODELS),
-    ("4x_NMKD-Siax_200k", CUSTOM_MODELS),
-    ("4x_NMKD-Superscale-SP_178000_G", CUSTOM_MODELS),
     ("4xNomos8kSC", CUSTOM_MODELS),
-    ("4xLSDIRplusC", CUSTOM_MODELS),
     ("4xHFA2k", CUSTOM_MODELS),
 ]
 

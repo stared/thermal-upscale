@@ -23,16 +23,10 @@ MODELS = [
     "upscayl-standard-4x",
     "upscayl-lite-4x",
     "high-fidelity-4x",
-    "remacri-4x",
-    "ultramix-balanced-4x",
-    "ultrasharp-4x",
     "digital-art-4x",
     "RealESRGAN_General_x4_v3",
     "RealESRGAN_General_WDN_x4_v3",
-    "4x_NMKD-Siax_200k",
-    "4x_NMKD-Superscale-SP_178000_G",
     "4xNomos8kSC",
-    "4xLSDIRplusC",
     "4xHFA2k",
 ]
 

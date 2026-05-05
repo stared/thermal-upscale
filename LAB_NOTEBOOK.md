@@ -28,18 +28,18 @@ Working log for the thermal upscaling experiments. Short, explicit, dated.
 | `RealESRGAN_General_WDN_x4_v3` | KEEP (worse than non-WDN) | denoised → over-soft. |
 | `4xHFA2k` | KEEP (different) | painterly, smooths embers but doesn't fabricate. |
 | `digital-art-4x` | KEEP (different aesthetics) | smoother gradients, distinct look. |
-| `ultramix-balanced-4x` | mid | not flagged either way; ≈standard. |
-| `remacri-4x` | mid | aggressive halo amplification (esp. `straw-edge`) — borderline drop. |
+| `ultramix-balanced-4x` | **DROP** | redundant with std/hi-fi. |
+| `remacri-4x` | **DROP** | aggressive halo amplification (esp. `straw-edge`). |
 | `ultrasharp-4x` | **DROP** | hallucinates: invents stripe patterns on cup ridges; warm streaks in `skirt-chain` not in source. |
 | `4x_NMKD-Siax_200k` | **DROP** | introduces texture/grain not in source. |
 | `4x_NMKD-Superscale-SP_178000_G` | **DROP** | same family as Siax. |
 | `4xLSDIRplusC` | **DROP** | looks close to Nomos but introduces faint micro-texture. user-flagged as "BAD, not same league as Nomos". |
 
-**Most discriminating regions**
-- `straw-edge` (cups image) — exposes halo amplification + fabricated bowl-ridge stripes.
-- `skirt-chain` (person image) — exposes hallucinated warm streaks (ultrasharp).
-- `belt-ornament` (person image) — fine hexagonal spokes, hallucination test.
-- `ember-texture` (campfire) — over-smoothing test; HFA2k flattens, RealESRGAN softens.
+**Most discriminating regions** (in order)
+1. **`belt-ornament` (person image) — canonical hardest test.** Hexagonal spokes ~1px in 192×256; reveals both hallucination (sharp models invent extra spokes) and over-smoothing (smoothing flattens the pattern).
+2. `straw-edge` (cups) — exposes halo amplification + fabricated bowl-ridge stripes.
+3. `skirt-chain` (person) — exposes hallucinated warm streaks (ultrasharp confirmed).
+4. `ember-texture` (campfire) — over-smoothing test; HFA2k flattens, RealESRGAN softens.
 
 **Divergence between my initial read and user verdict**
 - I dropped `RealESRGAN_General_x4_v3` and `4xHFA2k` for being "soft / over-smoothing"; user kept them.
@@ -53,16 +53,15 @@ Working log for the thermal upscaling experiments. Short, explicit, dated.
 
 ## Models pool (going forward)
 
-Active set for any future comparison:
+Active set for any future comparison (8 models, encoded in both scripts):
 - `upscayl-standard-4x` — default
 - `4xNomos8kSC` — primary alternative
 - `RealESRGAN_General_x4_v3` — fast option, soft-but-faithful
-- `4xHFA2k`, `digital-art-4x` — kept as aesthetic variants
+- `4xHFA2k`, `digital-art-4x` — aesthetic variants
+- `upscayl-lite-4x`, `high-fidelity-4x`, `RealESRGAN_General_WDN_x4_v3` — kept as worse-than-best fallbacks; will likely drop after one more sweep.
 
-Dropped, do not bother re-running:
-- `ultrasharp-4x`, `remacri-4x`, `4x_NMKD-Siax_200k`, `4x_NMKD-Superscale-SP_178000_G`, `4xLSDIRplusC`
-
-Ambiguous / lower priority: `upscayl-lite-4x`, `high-fidelity-4x`, `ultramix-balanced-4x`, `RealESRGAN_General_WDN_x4_v3`.
+Dropped, do not re-run:
+- `ultrasharp-4x`, `remacri-4x`, `ultramix-balanced-4x`, `4x_NMKD-Siax_200k`, `4x_NMKD-Superscale-SP_178000_G`, `4xLSDIRplusC`
 
 ## Open experiments / next
 
