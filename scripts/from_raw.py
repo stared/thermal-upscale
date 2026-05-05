@@ -30,7 +30,10 @@ UPSCAYL_MODELS = Path("/Applications/Upscayl.app/Contents/Resources/models")
 MODEL = "upscayl-standard-4x"
 
 PHOTOS = ["1777804010136.jpg", "1777733165452.jpg", "1771110170401.jpg"]
-COLORMAPS = ["ironbow", "inferno", "turbo"]
+# Active colormap. Ironbow and turbo dropped after the colormap-input sweep —
+# turbo is "scientific figure" aesthetic, ironbow is camera-default but adds
+# nothing diagnostic over inferno. See LAB_NOTEBOOK.md.
+COLORMAPS = ["inferno"]
 
 # (photo_id, region label, fractional center on 768x1024, half-side px)
 REGIONS = {
@@ -148,17 +151,18 @@ def run_upscayl(in_png: Path, out_png: Path) -> float:
 
 def build_grid(photo_id: str, region: str, center: tuple[float, float], half: int,
                out: Path) -> None:
-    """Two-row grid: 192x256 inputs (top), 768x1024 outputs cropped @1:1 (bottom).
-    Columns: jpeg-path, raw-ironbow, raw-inferno, raw-turbo."""
+    """One figure: JPEG-path vs raw-inferno path, on the same chart.
+    Top row 192×256 inputs (nearest-up), bottom row 768×1024 outputs cropped @ 1:1."""
     photo_work = WORK / photo_id
+    cmap = COLORMAPS[0]  # inferno
 
     inputs = [
         ("JPEG ↓ Lanczos", photo_work / "downscaled.png"),
-        *[(f"raw-{c}", photo_work / f"raw_{c}.png") for c in COLORMAPS],
+        (f"raw → {cmap}", photo_work / f"raw_{cmap}.png"),
     ]
     outputs = [
         ("JPEG → upscayl-std", photo_work / f"{MODEL}.png"),
-        *[(f"raw-{c} → upscayl-std", photo_work / f"raw_{c}_upscayl.png") for c in COLORMAPS],
+        (f"raw → {cmap} → upscayl-std", photo_work / f"raw_{cmap}_upscayl.png"),
     ]
 
     with Image.open(outputs[0][1]) as im:
@@ -167,26 +171,24 @@ def build_grid(photo_id: str, region: str, center: tuple[float, float], half: in
     crop_box = (max(0, cx - half), max(0, cy - half),
                 min(tw, cx + half), min(th, cy + half))
 
-    cols = 4
-    fig, axes = plt.subplots(2, cols, figsize=(4.0 * cols, 8.5))
+    fig, axes = plt.subplots(2, 2, figsize=(9, 10))
     fig.suptitle(f"{photo_id}.jpg — JPEG-path vs raw-mode (single network: {MODEL})\n"
-                 f"top: 192×256 input (nearest-up); bottom: {region} crop {crop_box[2]-crop_box[0]}×{crop_box[3]-crop_box[1]} @ 1:1",
+                 f"top: 192×256 input (nearest-up); bottom: {region} crop "
+                 f"{crop_box[2]-crop_box[0]}×{crop_box[3]-crop_box[1]} @ 1:1",
                  fontsize=12)
 
     for col, (label, path) in enumerate(inputs):
-        ax = axes[0, col]
         with Image.open(path) as im:
             up = im.resize((im.width * 4, im.height * 4), Image.Resampling.NEAREST)
-        ax.imshow(np.array(up))
-        ax.set_title(label, fontsize=10)
-        ax.set_xticks([]); ax.set_yticks([])
+        axes[0, col].imshow(np.array(up))
+        axes[0, col].set_title(label, fontsize=11)
+        axes[0, col].set_xticks([]); axes[0, col].set_yticks([])
 
     for col, (label, path) in enumerate(outputs):
-        ax = axes[1, col]
         with Image.open(path) as im:
-            ax.imshow(np.array(im.crop(crop_box)))
-        ax.set_title(label, fontsize=10)
-        ax.set_xticks([]); ax.set_yticks([])
+            axes[1, col].imshow(np.array(im.crop(crop_box)))
+        axes[1, col].set_title(label, fontsize=11)
+        axes[1, col].set_xticks([]); axes[1, col].set_yticks([])
 
     plt.tight_layout()
     fig.savefig(out, dpi=150, bbox_inches="tight")
