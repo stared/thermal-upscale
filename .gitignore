@@ -1,2 +1,6 @@
 examples/
 .DS_Store
+__pycache__/
+.venv/
+dist/
+*.egg-info/
