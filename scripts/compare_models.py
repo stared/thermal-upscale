@@ -50,6 +50,7 @@ MODELS: list[tuple[str, Path]] = [
 PHOTOS: list[tuple[str, tuple[float, float], int]] = [
     ("1777804010136.jpg", (0.50, 0.55), 384),  # cups/shisha — bowl rim & arm edges
     ("1777733165452.jpg", (0.50, 0.72), 384),  # campfire — wire/embers
+    ("1771110170401.jpg", (0.50, 0.78), 384),  # person/dance — belt ornament & skirt detail
 ]
 
 
