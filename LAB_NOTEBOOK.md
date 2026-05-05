@@ -63,14 +63,35 @@ Active set for any future comparison (8 models, encoded in both scripts):
 Dropped, do not re-run:
 - `ultrasharp-4x`, `remacri-4x`, `ultramix-balanced-4x`, `4x_NMKD-Siax_200k`, `4x_NMKD-Superscale-SP_178000_G`, `4xLSDIRplusC`
 
+## 2026-05-05 — raw-mode pipeline
+
+**Setup**
+- `scripts/from_raw.py` — extract APP3 uint16 → percentile-normalize → colormap → 192×256 PNG → `upscayl-bin -n upscayl-standard-4x`. Same single network as JPEG-path; only the input changes.
+- Hard error if a JPEG has no APP3 segment (no fallback to JPEG path).
+- Colormaps tested: `ironbow` (camera-default LUT), `inferno`, `turbo`. Ironbow LUT is the 19-control-point ramp from vibe-temp-cc.
+- Normalization: started with per-image min-max → fire core dominated dynamic range, washed out the rest. Switched to **1st–99th percentile clip** which matches what the camera firmware effectively does. (This is choice of input domain, not a classical filter — fully consistent with the one-network rule.)
+- IJPEG header reports `ir_w=256, ir_h=192` (sensor-native landscape). Reshape `(ir_w, ir_h)` already gives portrait (256 rows × 192 cols) in numpy; rotate only when JPEG aspect disagrees.
+- Outputs: `examples/raw_vs_jpeg_<id>.png` per photo (top row 192×256 inputs nearest-up; bottom row 768×1024 outputs cropped to the discriminating region).
+
+**Findings**
+- **Decisive win on JPEG halos.** Cups image, `upper-cup-rim` crop: the bright yellow halo line around the cup contour is fully present in JPEG-path → upscayl-std, **gone** in raw-mode → upscayl-std. Same for all three colormaps. The halo was camera-firmware edge enhancement baked into the JPEG; bypassing the JPEG removes it at source.
+- **Detail preservation comparable** to JPEG-path on the belt-ornament hex (person image): structure equally clear, no extra hallucination, no extra smoothing.
+- **High-dynamic-range scenes (campfire) recovered** with percentile clipping: branches, embers, foreground all hold detail; min-max alone collapses everything to a narrow warm band because the fire core skews the range.
+- **Colormap matters for aesthetic, not for SR quality.** Ironbow ≈ camera default look. Inferno cleaner, more diagnostic. Turbo distinctly different (rainbow), reads more like a scientific figure than a photo. The SR output structure is essentially identical across all three on the same scene — the network sees a colormap as just an RGB image and processes it the same way.
+
+**Decision**
+- Default to **raw-mode + ironbow** for the eventual CLI when APP3 data is available. Halo elimination is the biggest single quality win on this dataset; user explicitly flagged the halo as the artifact they hate most.
+- Keep JPEG-path available as `--from-jpeg` for non-P3 sources or sources with APP3 missing. **No silent fallback** — `--from-raw` errors out if APP3 absent.
+- Colormap selection via `--colormap {ironbow|inferno|turbo}`, default `ironbow`.
+
 ## Open experiments / next
 
 **Constraint:** the upscaling itself is **one** neural network. Not a cascade, not a two-stage refinement, not two models stitched together. No classical pre/post filters either (Gaussian, unsharp, CAS, denoising). Fine-tuned weights are fair game. Lanczos as the *downscale to native sensor size* stays — that's input prep, not part of the SR step.
 
 Given that, the only remaining levers are: **(a) which single network** and **(b) what input that network sees**.
 
-- [ ] **Raw-mode pipeline.** Extract APP3 uint16 → normalize → apply colormap → 192×256 PNG → upscayl-bin Standard. Pure input-side change; same single network. Should remove the camera-firmware JPEG halo entirely. Compare colormap variants (ironbow / inferno / turbo) since the colormap *is* what the SR network sees.
-- [ ] **A/B Standard vs Nomos8kSC** on ~10 more scenes (3-image sample isn't decisive). Diverse subjects: people, indoor objects, outdoor warm/cool, low-thermal-contrast frames.
+- [x] **Raw-mode pipeline.** ✓ Done above. Halo eliminated. Default for CLI.
+- [ ] **A/B Standard vs Nomos8kSC** on raw-mode inputs (~10 more scenes). Now that the input is clean, do the model differences look any different from the JPEG-path A/B?
 - [ ] **Thermal-specific fine-tune.** Out of scope unless we collect a P3 dataset and have GPU time. Park.
 - [ ] **CLI** (only after the above settle): `thermal-upscale INPUT [-o OUT] [--from-raw] [--colormap NAME] [--model NAME]`. Default `upscayl-standard-4x`. Single-file or directory input.
 
