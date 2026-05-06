@@ -5,6 +5,7 @@ scripts/ may add their own matplotlib glue on top of this.
 """
 from __future__ import annotations
 
+import shutil
 import struct
 import subprocess
 import time
@@ -14,8 +15,33 @@ import numpy as np
 from matplotlib import colormaps
 from PIL import Image
 
-UPSCAYL_BIN = Path("/Applications/Upscayl.app/Contents/Resources/bin/upscayl-bin")
-UPSCAYL_MODELS = Path("/Applications/Upscayl.app/Contents/Resources/models")
+
+def _resolve_upscayl_bin() -> Path:
+    """Find upscayl-bin: bundled macOS app first, then $PATH."""
+    mac_app = Path("/Applications/Upscayl.app/Contents/Resources/bin/upscayl-bin")
+    if mac_app.exists():
+        return mac_app
+    on_path = shutil.which("upscayl-bin")
+    if on_path:
+        return Path(on_path)
+    return mac_app  # not found; report the macOS path as the assumed location
+
+
+def _resolve_upscayl_models() -> Path:
+    mac_app = Path("/Applications/Upscayl.app/Contents/Resources/models")
+    if mac_app.exists():
+        return mac_app
+    # If upscayl-bin is on $PATH, look for a sibling models/ directory
+    on_path = shutil.which("upscayl-bin")
+    if on_path:
+        sibling = Path(on_path).parent.parent / "models"
+        if sibling.exists():
+            return sibling
+    return mac_app
+
+
+UPSCAYL_BIN = _resolve_upscayl_bin()
+UPSCAYL_MODELS = _resolve_upscayl_models()
 CACHE_MODELS = Path.home() / ".cache/thermal-upscale/models"
 
 

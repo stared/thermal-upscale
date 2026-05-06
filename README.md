@@ -1,0 +1,80 @@
+# thermal-upscale
+
+Upscale Thermal Master P3 thermal-camera JPEGs by 4× using [Upscayl](https://upscayl.org/).
+
+The Thermal Master P3 has a 192×256 micro-bolometer sensor and the camera firmware bakes a ~5.83× upscaled 1120×1494 JPEG with edge-enhancement halos. This tool downscales the JPEG back to native sensor resolution (or extracts the raw uint16 thermal data from the JPEG's APP3 segment), optionally applies a Wiener-deconvolution sharpening preprocess, and runs Upscayl's NCNN super-resolution model for a clean 4× output (768×1024).
+
+## Quick start (with `uvx`)
+
+No install needed — [`uvx`](https://docs.astral.sh/uv/guides/tools/) runs the tool in a one-shot environment from this repo:
+
+```sh
+uvx --from git+https://github.com/<your-username>/thermal_upscale thermal-upscale photo.jpg
+```
+
+Output: `photo_improved.png` next to the input (768×1024).
+
+For repeat use, install it once and call directly:
+
+```sh
+uv tool install git+https://github.com/<your-username>/thermal_upscale
+thermal-upscale photo.jpg
+```
+
+To upgrade later: `uv tool upgrade thermal-upscale`.
+
+## Prerequisites
+
+1. **[Upscayl](https://upscayl.org/) desktop app installed.** The CLI shells out to the bundled `upscayl-bin` and reads the bundled NCNN models. macOS path is auto-detected (`/Applications/Upscayl.app/...`); on Linux/Windows place `upscayl-bin` on `$PATH` with a sibling `models/` directory.
+2. **Python 3.13+** (handled automatically by `uv`).
+
+## Usage
+
+```sh
+# default — JPEG-path, upscayl-standard model
+thermal-upscale photo.jpg
+
+# raw-path with PyTorch-optimized Wiener σ=0.81 + upscayl-lite (=RealESRGAN-General-v3)
+thermal-upscale photo.jpg --from-raw
+
+# explicit output path
+thermal-upscale photo.jpg out.png
+
+# different SR model
+thermal-upscale photo.jpg --model 4xHFA2k
+
+# disable sharpening preprocessing in raw mode
+thermal-upscale photo.jpg --from-raw --sigma 0
+```
+
+### Defaults
+
+| flag | JPEG mode (default) | `--from-raw` |
+|---|---|---|
+| output | `<input-stem>_improved.png` | same |
+| `--model` | `upscayl-standard-4x` | `upscayl-lite-4x` (= RealESRGAN-General-v3) |
+| `--sigma` | `0` (no preproc) | `0.81` (Wiener-deconvolved to match camera-JPEG sharpness) |
+| `--cut-percentile` | n/a | `1.0` (clip 1st & 99th percentile) |
+| `--colormap` | n/a | `inferno` |
+
+`--keep-intermediate` saves the 192×256 stage next to the output for inspection.
+
+## What's the right pipeline?
+
+- **JPEG-path (default)** is safer: the camera ISP already did bad-pixel correction, non-uniformity correction, and tone-mapping. The Lanczos downscale produces a clean 192×256 input for SR. Slight ISP halos remain.
+- **`--from-raw` (experimental)**: bypasses ISP halos by extracting the raw uint16 sensor data from the JPEG's APP3 segments. Exposes the bolometer's fixed-pattern noise — Wiener σ=0.81 sharpens detail to roughly match the camera's gradient energy with about half the camera's halo level on the test set, but FPN can still be visible. Use `--sigma 0` if the noise gets amplified.
+
+## Research scripts
+
+`scripts/` contains the diagnostic and parameter-search programs that produced the chosen defaults (sharpness sweeps across 14 SR models, PyTorch optimization of σ against camera-JPEG gradient energy, FPN diagnostics, etc.). They depend on the `[research]` extras (`torch`, `requests`):
+
+```sh
+uv sync --extra research
+uv run scripts/sharpen_optimize.py
+```
+
+See `LAB_NOTEBOOK.md` for the chronological log of findings and decisions.
+
+## License
+
+(Add as appropriate before publishing.)
