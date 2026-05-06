@@ -10,4 +10,5 @@ dependencies = [
     "matplotlib>=3.9",
     "requests>=2.32",
     "scipy>=1.13",
+    "torch>=2.11.0",
 ]
