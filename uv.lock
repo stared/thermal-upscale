@@ -840,14 +840,18 @@ wheels = [
 
 [[package]]
 name = "thermal-upscale"
-version = "0.0.1"
-source = { virtual = "." }
+version = "0.1.0"
+source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pillow" },
-    { name = "requests" },
     { name = "scipy" },
+]
+
+[package.optional-dependencies]
+research = [
+    { name = "requests" },
     { name = "torch" },
 ]
 
@@ -856,10 +860,11 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.9" },
     { name = "numpy", specifier = ">=2" },
     { name = "pillow", specifier = ">=11" },
-    { name = "requests", specifier = ">=2.32" },
+    { name = "requests", marker = "extra == 'research'", specifier = ">=2.32" },
     { name = "scipy", specifier = ">=1.13" },
-    { name = "torch", specifier = ">=2.11.0" },
+    { name = "torch", marker = "extra == 'research'", specifier = ">=2.11.0" },
 ]
+provides-extras = ["research"]
 
 [[package]]
 name = "torch"
