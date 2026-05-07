@@ -161,9 +161,17 @@ def wiener_deconvolve(rgb: np.ndarray, sigma: float, K: float = 1e-3) -> np.ndar
 # ---------- pipeline branches ----------
 
 def render_jpeg_down(jpeg: Path) -> np.ndarray:
-    """JPEG-path: Lanczos-downscale the camera JPEG to native sensor (192×256)."""
+    """JPEG-path: Lanczos-downscale the camera JPEG to native sensor (192×256).
+
+    Falls back to the canonical Thermal Master P3 sensor size (192×256) when the
+    APP2 IJPEG header is missing — e.g. files that were rotated and re-saved by
+    another tool, dropping the metadata segments.
+    """
     img = Image.open(jpeg)
-    ir_w, ir_h = parse_ijpeg_header(img)
+    try:
+        ir_w, ir_h = parse_ijpeg_header(img)
+    except ValueError:
+        ir_w, ir_h = 192, 256
     if (img.height > img.width) != (ir_h > ir_w):
         ir_w, ir_h = ir_h, ir_w
     return np.array(img.convert("RGB").resize((ir_w, ir_h), Image.Resampling.LANCZOS))

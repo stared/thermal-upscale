@@ -46,11 +46,25 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    p.add_argument("input", type=Path, help="Thermal Master P3 JPEG")
+    p.add_argument(
+        "input", type=Path, nargs="?", default=None,
+        help="Thermal Master P3 JPEG (single-file mode). "
+             "Omit when using --from-folder.")
     p.add_argument(
         "output", type=Path, nargs="?", default=None,
-        help="Output PNG (4× upscaled). Default: <input-stem>_improved.png "
-             "next to the input.")
+        help="Output PNG for single-file mode. "
+             "Default: <input-stem>_improved.png next to the input.")
+    p.add_argument(
+        "--from-folder", type=Path, default=None, dest="from_folder",
+        metavar="DIR",
+        help="Batch mode: process every *.jpg in DIR. "
+             "Per-file outputs are <stem>_improved.png in --to-folder. "
+             "Existing outputs are skipped.")
+    p.add_argument(
+        "--to-folder", type=Path, default=None, dest="to_folder",
+        metavar="DIR",
+        help="Output folder for --from-folder. "
+             "Default: <from-folder>_improved/ next to the input folder.")
     p.add_argument(
         "--from-raw", action="store_true", dest="from_raw",
         help="Extract APP3 uint16 thermal data instead of Lanczos-downscaling "
@@ -79,48 +93,79 @@ def main() -> None:
         help="Save the 192×256 intermediate next to the output (for inspection).")
     args = p.parse_args()
 
-    if not args.input.exists():
-        raise SystemExit(f"input not found: {args.input}")
-
-    if args.output is None:
-        args.output = args.input.with_name(f"{args.input.stem}_improved.png")
+    if (args.input is None) == (args.from_folder is None):
+        raise SystemExit("provide either an input JPEG or --from-folder DIR (not both)")
+    if args.to_folder is not None and args.from_folder is None:
+        raise SystemExit("--to-folder requires --from-folder")
 
     model = args.model if args.model is not None else (
         "upscayl-lite-4x" if args.from_raw else "upscayl-standard-4x")
     mdir = find_model_dir(model)
     sigma = args.sigma if args.sigma is not None else (0.81 if args.from_raw else 0.0)
 
+    if args.from_folder is not None:
+        src = args.from_folder
+        if not src.is_dir():
+            raise SystemExit(f"--from-folder: not a directory: {src}")
+        dst = args.to_folder if args.to_folder is not None else \
+            src.with_name(f"{src.name}_improved")
+        dst.mkdir(parents=True, exist_ok=True)
+        jpegs = sorted(p for p in src.iterdir()
+                       if p.suffix.lower() == ".jpg" and p.is_file())
+        if not jpegs:
+            raise SystemExit(f"no *.jpg files in {src}")
+        print(f"{len(jpegs)} JPEG(s) in {src} → {dst}")
+        for i, jpg in enumerate(jpegs, 1):
+            out = dst / f"{jpg.stem}_improved.png"
+            if out.exists():
+                print(f"[{i}/{len(jpegs)}] skip {jpg.name} (exists)")
+                continue
+            print(f"[{i}/{len(jpegs)}] {jpg.name}")
+            _process_one(jpg, out, args, model, mdir, sigma)
+        return
+
+    if not args.input.exists():
+        raise SystemExit(f"input not found: {args.input}")
+    output = args.output if args.output is not None else \
+        args.input.with_name(f"{args.input.stem}_improved.png")
+    _process_one(args.input, output, args, model, mdir, sigma)
+
+
+def _process_one(
+    input_path: Path, output_path: Path, args: argparse.Namespace,
+    model: str, mdir: Path, sigma: float,
+) -> None:
     if args.from_raw:
         try:
-            intermediate = render_raw(args.input, args.cut_percentile, args.colormap)
+            intermediate = render_raw(input_path, args.cut_percentile, args.colormap)
         except ValueError as e:
             raise SystemExit(f"raw mode error: {e}\n"
                              f"(drop --from-raw if this JPEG has no APP3 raw)")
         suffix = f"raw_s{sigma:.2f}_p{args.cut_percentile:.1f}"
     else:
-        intermediate = render_jpeg_down(args.input)
+        intermediate = render_jpeg_down(input_path)
         suffix = "jpeg" if sigma == 0 else f"jpeg_s{sigma:.2f}"
 
     if sigma > 0:
         intermediate = wiener_deconvolve(intermediate, sigma=sigma, K=args.K)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as td:
         intermediate_png = Path(td) / "intermediate.png"
         Image.fromarray(intermediate).save(intermediate_png, format="PNG")
 
         if args.keep_intermediate:
-            keep_path = args.output.with_name(
-                f"{args.output.stem}_{suffix}_192x256.png")
+            keep_path = output_path.with_name(
+                f"{output_path.stem}_{suffix}_192x256.png")
             Image.fromarray(intermediate).save(keep_path, format="PNG")
             print(f"intermediate: {keep_path}")
 
-        dt = run_upscayl(intermediate_png, args.output, model, mdir)
+        dt = run_upscayl(intermediate_png, output_path, model, mdir)
 
     h, w = intermediate.shape[:2]
     mode = "raw" if args.from_raw else "jpeg"
-    print(f"{args.input.name}  →  {args.output.name}  "
+    print(f"{input_path.name}  →  {output_path.name}  "
           f"({mode} mode, σ={sigma:.2f}, {model}, {dt:.2f}s, "
           f"{w}×{h} → {w*4}×{h*4})")
 
