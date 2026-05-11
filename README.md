@@ -4,6 +4,8 @@ Upscale Thermal Master P3 thermal-camera JPEGs by 4× using [Upscayl](https://up
 
 The Thermal Master P3 has a 192×256 micro-bolometer sensor and the camera firmware bakes a ~5.83× upscaled 1120×1494 JPEG with edge-enhancement halos. This tool downscales the JPEG back to native sensor resolution (or extracts the raw uint16 thermal data from the JPEG's APP3 segment), optionally applies a Wiener-deconvolution sharpening preprocess, and runs Upscayl's NCNN super-resolution model for a clean 4× output (768×1024).
 
+![Camera JPEG vs. upscayl-standard / RealESRGAN-General-v3 / digital-art-4x, on two scenes](examples/readme_hero.png)
+
 ## Quick start (with `uvx`)
 
 No install needed — [`uvx`](https://docs.astral.sh/uv/guides/tools/) runs the tool in a one-shot environment from this repo:
