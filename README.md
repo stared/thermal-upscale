@@ -6,6 +6,10 @@ The Thermal Master P3 has a 192×256 micro-bolometer sensor and the camera firmw
 
 ![Camera JPEG vs. upscayl-standard / RealESRGAN-General-v3 / digital-art-4x, on two scenes](examples/readme_hero.png)
 
+1:1 crops on the canonical discriminating regions — `upper-cup-rim` (camera-firmware halo around the rim) and `belt-ornament` (~1px hexagonal spokes at sensor resolution):
+
+![Same four variants, 288×288 1:1 crops on upper-cup-rim and belt-ornament](examples/readme_crops.png)
+
 ## Quick start (with `uvx`)
 
 No install needed — [`uvx`](https://docs.astral.sh/uv/guides/tools/) runs the tool in a one-shot environment from this repo:

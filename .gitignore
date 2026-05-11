@@ -1,5 +1,6 @@
 examples/*
 !examples/readme_hero.png
+!examples/readme_crops.png
 .DS_Store
 __pycache__/
 .venv/
