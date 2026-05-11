@@ -9,7 +9,7 @@ The Thermal Master P3 has a 192×256 micro-bolometer sensor and the camera firmw
 No install needed — [`uvx`](https://docs.astral.sh/uv/guides/tools/) runs the tool in a one-shot environment from this repo:
 
 ```sh
-uvx --from git+https://github.com/<your-username>/thermal_upscale thermal-upscale photo.jpg
+uvx --from git+https://github.com/stared/thermal-upscale thermal-upscale photo.jpg
 ```
 
 Output: `photo_improved.png` next to the input (768×1024).
@@ -17,7 +17,7 @@ Output: `photo_improved.png` next to the input (768×1024).
 For repeat use, install it once and call directly:
 
 ```sh
-uv tool install git+https://github.com/<your-username>/thermal_upscale
+uv tool install git+https://github.com/stared/thermal-upscale
 thermal-upscale photo.jpg
 ```
 
@@ -77,4 +77,4 @@ See `LAB_NOTEBOOK.md` for the chronological log of findings and decisions.
 
 ## License
 
-(Add as appropriate before publishing.)
+MIT — see [LICENSE](LICENSE).
