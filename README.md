@@ -64,6 +64,28 @@ thermal-upscale photo.jpg --from-raw --sigma 0
 - **JPEG-path (default)** is safer: the camera ISP already did bad-pixel correction, non-uniformity correction, and tone-mapping. The Lanczos downscale produces a clean 192×256 input for SR. Slight ISP halos remain.
 - **`--from-raw` (experimental)**: bypasses ISP halos by extracting the raw uint16 sensor data from the JPEG's APP3 segments. Exposes the bolometer's fixed-pattern noise — Wiener σ=0.81 sharpens detail to roughly match the camera's gradient energy with about half the camera's halo level on the test set, but FPN can still be visible. Use `--sigma 0` if the noise gets amplified.
 
+## Model picks
+
+From a 14-model sweep on Thermal Master P3 photos (cups, campfire, person — see `LAB_NOTEBOOK.md`):
+
+**Top — default & primary alternatives**
+
+- [`upscayl-standard-4x`](https://github.com/upscayl/upscayl/tree/main/resources/models) — reference. Faithful, no halo amplification. Bundled with [Upscayl](https://upscayl.org/). Slowest (~1.9s).
+- [`4xNomos8kSC`](https://github.com/Phhofm/models/releases/tag/4xNomos8kSC) ([NCNN port](https://github.com/upscayl/custom-models/tree/main/models)) — clean & sharp without micro-contrast push. The only real alternative to Standard.
+- [`RealESRGAN_General_x4_v3`](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0) ([NCNN port](https://github.com/upscayl/custom-models/tree/main/models)) — soft but faithful; preserves structure, doesn't hallucinate. Fast (~0.4s). Byte-identical to bundled `upscayl-lite-4x`.
+
+**Keep — fallbacks / aesthetic variants**
+
+- [`upscayl-lite-4x`](https://github.com/upscayl/upscayl/tree/main/resources/models) — = `RealESRGAN_General_x4_v3`. Default for `--from-raw`.
+- [`high-fidelity-4x`](https://github.com/upscayl/custom-models/tree/main/models) — ≈ Standard, slightly softer.
+- [`4xHFA2k`](https://github.com/Phhofm/models/releases/tag/4xHFA2k) ([NCNN port](https://github.com/upscayl/custom-models/tree/main/models)) — painterly, smooths embers without fabricating.
+- [`digital-art-4x`](https://github.com/upscayl/custom-models/tree/main/models) — distinct smoother aesthetic.
+- [`RealESRGAN_General_WDN_x4_v3`](https://github.com/upscayl/custom-models/tree/main/models) — denoised variant; over-soft.
+
+**Drop — don't re-run**
+
+`ultrasharp-4x`, `remacri-4x`, `ultramix-balanced-4x`, `4x_NMKD-Siax_200k`, `4x_NMKD-Superscale-SP_178000_G`, `4xLSDIRplusC` — either hallucinate textures (ultrasharp invents cup-ridge stripes, NMKD adds grain) or amplify the JPEG halo (remacri).
+
 ## Research scripts
 
 `scripts/` contains the diagnostic and parameter-search programs that produced the chosen defaults (sharpness sweeps across 14 SR models, PyTorch optimization of σ against camera-JPEG gradient energy, FPN diagnostics, etc.). They depend on the `[research]` extras (`torch`, `requests`):
